@@ -17,14 +17,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.dailymoment.ui.CalendarScreen
 import com.example.dailymoment.ui.CaptureScreen
+import com.example.dailymoment.ui.DetailScreen
 import com.example.dailymoment.ui.EntryViewModel
 import com.example.dailymoment.ui.JournalScreen
-import com.example.dailymoment.ui.TimelineScreen
+import java.time.YearMonth
 
 class MainActivity : ComponentActivity() {
     private var captureRequest by mutableStateOf(0) // bumps each time a notification opens the app
@@ -55,14 +58,17 @@ class MainActivity : ComponentActivity() {
 }
 
 private sealed interface Screen {
-    data object Timeline : Screen
+    data object Calendar : Screen
     data object Capture : Screen
     data class Journal(val photoPath: String) : Screen
+    data class Detail(val entryId: Long) : Screen
 }
 
 @Composable
 private fun AppRoot(captureRequest: Int, vm: EntryViewModel = viewModel()) {
-    var screen by remember { mutableStateOf<Screen>(Screen.Timeline) }
+    var screen by remember { mutableStateOf<Screen>(Screen.Calendar) }
+    // Which month the calendar is showing; kept here so it survives opening an entry and coming back.
+    var visibleMonth by rememberSaveable { mutableStateOf(YearMonth.now().toString()) }
 
     // Ask for notification permission once (Android 13+).
     val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
@@ -71,26 +77,34 @@ private fun AppRoot(captureRequest: Int, vm: EntryViewModel = viewModel()) {
     // Tapping the notification jumps straight to the camera.
     LaunchedEffect(captureRequest) { if (captureRequest > 0) screen = Screen.Capture }
 
-    BackHandler(enabled = screen !is Screen.Timeline) { screen = Screen.Timeline }
+    BackHandler(enabled = screen !is Screen.Calendar) { screen = Screen.Calendar }
 
     val entries by vm.entries.collectAsStateWithLifecycle()
     val streak by vm.streak.collectAsStateWithLifecycle()
 
     when (val s = screen) {
-        Screen.Timeline -> TimelineScreen(
+        Screen.Calendar -> CalendarScreen(
             entries = entries,
             streak = streak,
+            visibleMonth = visibleMonth,
+            onVisibleMonthChange = { visibleMonth = it },
+            onOpenEntry = { id -> screen = Screen.Detail(id) },
             onCapture = { screen = Screen.Capture }
         )
         Screen.Capture -> CaptureScreen(
             onPhotoTaken = { path -> screen = Screen.Journal(path) },
-            onCancel = { screen = Screen.Timeline }
+            onCancel = { screen = Screen.Calendar }
         )
         is Screen.Journal -> JournalScreen(
             photoPath = s.photoPath,
             onSave = { happened, learned ->
-                vm.save(s.photoPath, happened, learned) { screen = Screen.Timeline }
+                vm.save(s.photoPath, happened, learned) { screen = Screen.Calendar }
             }
+        )
+        is Screen.Detail -> DetailScreen(
+            entries = entries.sortedBy { it.createdAt },   // oldest -> newest, so swipe right = earlier
+            startEntryId = s.entryId,
+            onBack = { screen = Screen.Calendar }
         )
     }
 }
