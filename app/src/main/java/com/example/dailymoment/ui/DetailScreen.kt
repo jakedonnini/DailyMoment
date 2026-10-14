@@ -4,6 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -23,7 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.dailymoment.data.Entry
 import java.io.File
@@ -82,23 +86,51 @@ private fun EntryPage(entry: Entry) {
             frontPath = entry.frontPhotoPath,
             modifier = Modifier.fillMaxWidth().height(380.dp)
         )
-        Text(
-            Instant.ofEpochMilli(entry.createdAt).atZone(ZoneId.systemDefault()).format(detailDateFormat),
-            style = MaterialTheme.typography.labelLarge,
+        Surface(
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            shape = RoundedCornerShape(50),
             modifier = Modifier.padding(top = 16.dp)
-        )
-        if (entry.happened.isNotBlank()) {
-            Text("What happened", style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp))
-            Text(entry.happened, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 4.dp))
+        ) {
+            Text(
+                Instant.ofEpochMilli(entry.createdAt).atZone(ZoneId.systemDefault()).format(detailDateFormat),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+            )
         }
-        if (entry.learned.isNotBlank()) {
-            Text("What I learned", style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp))
-            Text(entry.learned, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 4.dp))
-        }
+        if (entry.happened.isNotBlank()) JournalCard("What happened", entry.happened)
+        if (entry.learned.isNotBlank()) JournalCard("What I learned", entry.learned)
         if (entry.happened.isBlank() && entry.learned.isBlank()) {
-            Text("No journal text for this day.", modifier = Modifier.padding(top = 16.dp))
+            JournalCard(title = null, body = "No journal text for this day.", muted = true)
+        }
+    }
+}
+
+/** Rounded card holding one journal answer, with an accent-colored heading. */
+@Composable
+private fun JournalCard(title: String?, body: String, muted: Boolean = false) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+    ) {
+        Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
+            if (title != null) {
+                Text(
+                    title.uppercase(),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+            Text(
+                body,
+                style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 26.sp),
+                color = if (muted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }
