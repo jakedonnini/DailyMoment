@@ -83,10 +83,18 @@ fun CaptureScreen(onPhotosTaken: (backPath: String, frontPath: String?) -> Unit,
     val previewView = remember { PreviewView(context) }
     var busy by remember { mutableStateOf(false) }
     var overlay by remember { mutableStateOf<String?>(null) }
+    // Which camera takes the first photo. Toggled by the swap button.
+    var frontFirst by remember { mutableStateOf(false) }
+    val firstLens = if (frontFirst) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
+    val secondLens = if (frontFirst) CameraSelector.LENS_FACING_BACK else CameraSelector.LENS_FACING_FRONT
 
-    // Start on the rear camera.
-    LaunchedEffect(Unit) {
-        bindCamera(context, lifecycleOwner, previewView, imageCapture, CameraSelector.LENS_FACING_BACK)
+    // Preview whichever camera goes first; rebinds when the order is swapped.
+    LaunchedEffect(frontFirst) {
+        val ok = bindCamera(context, lifecycleOwner, previewView, imageCapture, firstLens)
+        if (!ok && frontFirst) {
+            Toast.makeText(context, "Front camera not available", Toast.LENGTH_SHORT).show()
+            frontFirst = false
+        }
     }
     // Release the camera when leaving this screen.
     DisposableEffect(Unit) {
@@ -104,6 +112,17 @@ fun CaptureScreen(onPhotosTaken: (backPath: String, frontPath: String?) -> Unit,
             enabled = !busy,
             modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp)
         ) { Text("Cancel", color = MaterialTheme.colorScheme.onSurface) }
+
+        // Swap which camera shoots first. Pressing again reverses it.
+        TextButton(
+            onClick = { frontFirst = !frontFirst },
+            enabled = !busy,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(8.dp)
+                .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(50))
+        ) { Text(if (frontFirst) "⇄ Selfie first" else "⇄ Back first", color = Color.White) }
 
         overlay?.let {
             Text(
@@ -125,29 +144,37 @@ fun CaptureScreen(onPhotosTaken: (backPath: String, frontPath: String?) -> Unit,
                     val dir = File(context.filesDir, "photos").apply { mkdirs() }
                     val stamp = System.currentTimeMillis()
 
-                    // 1) Rear camera
                     val backFile = File(dir, "IMG_${stamp}_back.jpg")
-                    if (!imageCapture.takePhoto(context, backFile)) {
+                    val frontFile = File(dir, "IMG_${stamp}_front.jpg")
+                    val firstFile = if (frontFirst) frontFile else backFile
+                    val secondFile = if (frontFirst) backFile else frontFile
+
+                    // 1) First camera (whatever is currently previewing)
+                    if (!imageCapture.takePhoto(context, firstFile)) {
                         Toast.makeText(context, "Capture failed, try again", Toast.LENGTH_SHORT).show()
                         busy = false
                         return@launch
                     }
 
-                    // 2) Switch to front camera, short countdown, then capture
-                    var frontPath: String? = null
-                    val frontReady = bindCamera(
-                        context, lifecycleOwner, previewView, imageCapture, CameraSelector.LENS_FACING_FRONT
-                    )
-                    if (frontReady) {
+                    // 2) Switch to the other camera, short countdown, then capture
+                    if (bindCamera(context, lifecycleOwner, previewView, imageCapture, secondLens)) {
                         for (n in 2 downTo 1) {
-                            overlay = "Selfie in $n…"
+                            overlay = if (frontFirst) "Back camera in $n…" else "Selfie in $n…"
                             delay(1000)
                         }
                         overlay = null
-                        val frontFile = File(dir, "IMG_${stamp}_front.jpg")
-                        if (imageCapture.takePhoto(context, frontFile)) frontPath = frontFile.absolutePath
+                        imageCapture.takePhoto(context, secondFile)
                     }
 
+                    // A rear photo is required; the selfie is optional.
+                    if (!backFile.exists()) {
+                        frontFile.delete()
+                        Toast.makeText(context, "Back camera capture failed, try again", Toast.LENGTH_SHORT).show()
+                        busy = false
+                        bindCamera(context, lifecycleOwner, previewView, imageCapture, firstLens)
+                        return@launch
+                    }
+                    val frontPath = frontFile.takeIf { it.exists() }?.absolutePath
                     onPhotosTaken(backFile.absolutePath, frontPath)
                 }
             },
