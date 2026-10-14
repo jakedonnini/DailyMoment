@@ -25,12 +25,13 @@ class EntryViewModel(app: Application) : AndroidViewModel(app) {
     val streak: StateFlow<Int> = entries.map { computeStreak(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    fun save(photoPath: String, happened: String, learned: String, onDone: () -> Unit) {
+    fun save(photoPath: String, frontPhotoPath: String?, happened: String, learned: String, onDone: () -> Unit) {
         viewModelScope.launch {
             dao.insert(
                 Entry(
                     createdAt = System.currentTimeMillis(),
                     photoPath = photoPath,
+                    frontPhotoPath = frontPhotoPath,
                     happened = happened.trim(),
                     learned = learned.trim()
                 )

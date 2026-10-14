@@ -60,7 +60,7 @@ class MainActivity : ComponentActivity() {
 private sealed interface Screen {
     data object Calendar : Screen
     data object Capture : Screen
-    data class Journal(val photoPath: String) : Screen
+    data class Journal(val photoPath: String, val frontPhotoPath: String?) : Screen
     data class Detail(val entryId: Long) : Screen
 }
 
@@ -92,13 +92,14 @@ private fun AppRoot(captureRequest: Int, vm: EntryViewModel = viewModel()) {
             onCapture = { screen = Screen.Capture }
         )
         Screen.Capture -> CaptureScreen(
-            onPhotoTaken = { path -> screen = Screen.Journal(path) },
+            onPhotosTaken = { back, front -> screen = Screen.Journal(back, front) },
             onCancel = { screen = Screen.Calendar }
         )
         is Screen.Journal -> JournalScreen(
             photoPath = s.photoPath,
+            frontPhotoPath = s.frontPhotoPath,
             onSave = { happened, learned ->
-                vm.save(s.photoPath, happened, learned) { screen = Screen.Calendar }
+                vm.save(s.photoPath, s.frontPhotoPath, happened, learned) { screen = Screen.Calendar }
             }
         )
         is Screen.Detail -> DetailScreen(

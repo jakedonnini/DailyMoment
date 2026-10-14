@@ -77,14 +77,10 @@ private fun EntryPage(entry: Entry) {
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        AsyncImage(
-            model = File(entry.photoPath),
-            contentDescription = "Photo from this day",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(380.dp)
-                .clip(RoundedCornerShape(20.dp))
+        DualPhoto(
+            backPath = entry.photoPath,
+            frontPath = entry.frontPhotoPath,
+            modifier = Modifier.fillMaxWidth().height(380.dp)
         )
         Text(
             Instant.ofEpochMilli(entry.createdAt).atZone(ZoneId.systemDefault()).format(detailDateFormat),

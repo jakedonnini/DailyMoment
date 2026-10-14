@@ -6,11 +6,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
@@ -21,14 +20,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import java.io.File
 
 @Composable
-fun JournalScreen(photoPath: String, onSave: (happened: String, learned: String) -> Unit) {
+fun JournalScreen(
+    photoPath: String,
+    frontPhotoPath: String?,
+    onSave: (happened: String, learned: String) -> Unit
+) {
     var happened by rememberSaveable { mutableStateOf("") }
     var learned by rememberSaveable { mutableStateOf("") }
 
@@ -41,14 +40,10 @@ fun JournalScreen(photoPath: String, onSave: (happened: String, learned: String)
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        AsyncImage(
-            model = File(photoPath),
-            contentDescription = "Today's photo",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(280.dp)
-                .clip(RoundedCornerShape(20.dp))
+        DualPhoto(
+            backPath = photoPath,
+            frontPath = frontPhotoPath,
+            modifier = Modifier.fillMaxWidth().height(320.dp)
         )
         Spacer(Modifier.height(16.dp))
         OutlinedTextField(
@@ -70,6 +65,6 @@ fun JournalScreen(photoPath: String, onSave: (happened: String, learned: String)
         Button(
             onClick = { onSave(happened, learned) },
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Save") } // a single sentence is enough; nothing is required
+        ) { Text("Save") }
     }
 }
