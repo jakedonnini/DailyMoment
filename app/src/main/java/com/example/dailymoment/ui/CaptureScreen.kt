@@ -13,14 +13,18 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +40,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -113,17 +118,6 @@ fun CaptureScreen(onPhotosTaken: (backPath: String, frontPath: String?) -> Unit,
             modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp)
         ) { Text("Cancel", color = MaterialTheme.colorScheme.onSurface) }
 
-        // Swap which camera shoots first. Pressing again reverses it.
-        TextButton(
-            onClick = { frontFirst = !frontFirst },
-            enabled = !busy,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(8.dp)
-                .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(50))
-        ) { Text(if (frontFirst) "⇄ Selfie first" else "⇄ Back first", color = Color.White) }
-
         overlay?.let {
             Text(
                 it,
@@ -136,54 +130,87 @@ fun CaptureScreen(onPhotosTaken: (backPath: String, frontPath: String?) -> Unit,
             )
         }
 
-        Button(
-            enabled = !busy,
-            onClick = {
-                busy = true
-                scope.launch {
-                    val dir = File(context.filesDir, "photos").apply { mkdirs() }
-                    val stamp = System.currentTimeMillis()
+        val capture: () -> Unit = {
+            busy = true
+            scope.launch {
+                val dir = File(context.filesDir, "photos").apply { mkdirs() }
+                val stamp = System.currentTimeMillis()
 
-                    val backFile = File(dir, "IMG_${stamp}_back.jpg")
-                    val frontFile = File(dir, "IMG_${stamp}_front.jpg")
-                    val firstFile = if (frontFirst) frontFile else backFile
-                    val secondFile = if (frontFirst) backFile else frontFile
+                val backFile = File(dir, "IMG_${stamp}_back.jpg")
+                val frontFile = File(dir, "IMG_${stamp}_front.jpg")
+                val firstFile = if (frontFirst) frontFile else backFile
+                val secondFile = if (frontFirst) backFile else frontFile
 
-                    // 1) First camera (whatever is currently previewing)
-                    if (!imageCapture.takePhoto(context, firstFile)) {
-                        Toast.makeText(context, "Capture failed, try again", Toast.LENGTH_SHORT).show()
-                        busy = false
-                        return@launch
-                    }
-
-                    // 2) Switch to the other camera, short countdown, then capture
-                    if (bindCamera(context, lifecycleOwner, previewView, imageCapture, secondLens)) {
-                        for (n in 2 downTo 1) {
-                            overlay = if (frontFirst) "Back camera in $n…" else "Selfie in $n…"
-                            delay(1000)
-                        }
-                        overlay = null
-                        imageCapture.takePhoto(context, secondFile)
-                    }
-
-                    // A rear photo is required; the selfie is optional.
-                    if (!backFile.exists()) {
-                        frontFile.delete()
-                        Toast.makeText(context, "Back camera capture failed, try again", Toast.LENGTH_SHORT).show()
-                        busy = false
-                        bindCamera(context, lifecycleOwner, previewView, imageCapture, firstLens)
-                        return@launch
-                    }
-                    val frontPath = frontFile.takeIf { it.exists() }?.absolutePath
-                    onPhotosTaken(backFile.absolutePath, frontPath)
+                // 1) First camera (whatever is currently previewing)
+                if (!imageCapture.takePhoto(context, firstFile)) {
+                    Toast.makeText(context, "Capture failed, try again", Toast.LENGTH_SHORT).show()
+                    busy = false
+                    return@launch
                 }
-            },
-            modifier = Modifier
+
+                // 2) Switch to the other camera, short countdown, then capture
+                if (bindCamera(context, lifecycleOwner, previewView, imageCapture, secondLens)) {
+                    for (n in 2 downTo 1) {
+                        overlay = if (frontFirst) "Back camera in $n…" else "Selfie in $n…"
+                        delay(1000)
+                    }
+                    overlay = null
+                    imageCapture.takePhoto(context, secondFile)
+                }
+
+                // A rear photo is required; the selfie is optional.
+                if (!backFile.exists()) {
+                    frontFile.delete()
+                    Toast.makeText(context, "Back camera capture failed, try again", Toast.LENGTH_SHORT).show()
+                    busy = false
+                    bindCamera(context, lifecycleOwner, previewView, imageCapture, firstLens)
+                    return@launch
+                }
+                val frontPath = frontFile.takeIf { it.exists() }?.absolutePath
+                onPhotosTaken(backFile.absolutePath, frontPath)
+            }
+        }
+
+        Box(
+            Modifier
                 .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(24.dp)
                 .fillMaxWidth()
-        ) { Text(if (busy) "Capturing…" else "Capture") }
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 32.dp)
+        ) {
+            // Round shutter button in the middle.
+            Box(
+                Modifier
+                    .align(Alignment.Center)
+                    .size(76.dp)
+                    .border(4.dp, Color.White, CircleShape)
+                    .padding(8.dp)
+                    .clip(CircleShape)
+                    .background(if (busy) Color.White.copy(alpha = 0.4f) else Color.White)
+                    .clickable(enabled = !busy, onClickLabel = "Capture", onClick = capture)
+            )
+
+            // Swap which camera shoots first. Pressing again reverses it.
+            Column(
+                Modifier.align(Alignment.CenterEnd),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.45f))
+                        .clickable(enabled = !busy, onClickLabel = "Swap camera order") { frontFirst = !frontFirst },
+                    contentAlignment = Alignment.Center
+                ) { Text("⇄", color = Color.White, style = MaterialTheme.typography.titleLarge) }
+                Text(
+                    if (frontFirst) "Selfie first" else "Back first",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
     }
 }
 
